@@ -66,7 +66,7 @@ layout = [
 	]
 ]
 
-window = sg.Window("Loadouts", layout, finalize=True)
+window = sg.Window("Loadout Selector by u/4rkeN", layout, finalize=True)
 
 def lower_and_replace_illegal_chars(text):
 	return text.lower().replace("/", "").replace("\\", "").replace(":", "").replace("*", "").replace("?", "").replace('"', "").replace("<", "").replace(">", "").replace("|", "")
