@@ -3,21 +3,46 @@ from datetime import datetime
 import json
 import PySimpleGUI as sg
 import os
+import sys
 import time
 import threading
 import requests
 
-#add rightclick menu(delete, load, rename) and double click to load
-
-mon = {'top': 140, 'left': 1400, 'width': 470, 'height': 150}
-
-client = Client(region="eu")
-client.activate()
-
 right_click_menu = ["", ["Load", "Delete"]]
+
+def create_and_change_settings_file(region, auto_load_default):
+	config_settings = {
+		"region": region,
+		"auto_load_default": auto_load_default,
+	}
+
+	json_object = json.dumps(config_settings, indent=2)
+	
+	with open("settings.json", "w") as outfile:
+		outfile.write(json_object)
+
+def get_settings_file():
+	try:
+		with open("settings.json", "r") as openfile:
+			json_object = json.load(openfile)
+			return json_object
+	except:
+		pass	
+
+if not os.path.exists("settings.json"):	
+	create_and_change_settings_file("na", False)
+
+if get_settings_file():
+	client = Client(region=get_settings_file()["region"])
+else:
+	client = Client(region="na")
 
 layout = [
 	[
+		[
+			sg.Text("Region"),
+			sg.Combo(values=["na", "eu", "latam", "br", "ap", "kr", "pbe"], default_value=get_settings_file()["region"], key="-REGION-", enable_events=True, size=(10, 1))
+		],
 		[
 			sg.In(size=(15, 1), enable_events=True, key="-LOADOUTNAME-", default_text="Loadout Name"),
 			sg.Button("Save Loadout", key="-SAVE-"),
@@ -50,8 +75,6 @@ def save_loadout(name):
 	loadout = client.fetch_player_loadout()
 
 	name = lower_and_replace_illegal_chars(name)
-
-	print(name)
 
 	config_loadout = {
 		"name": name,
@@ -138,7 +161,7 @@ def clock():
 	window["-DEBUG-"].update("Clock started.")
 	while do_run == True:
 		window["-DEBUG-"].update("Not in pregame.")
-		while is_in_pregame() == True:
+		while is_in_pregame() == True and do_run == True:
 			window["-DEBUG-"].update("Pregame detected. Lock an agent.")
 
 			all_loadouts = get_updated_list()
@@ -166,11 +189,27 @@ while True:
 	#GUI
 	event, values = window.read()
 
-	if event == "-INIT-":
+	if event == "-INIT-":		
+		client.activate()
+
 		loud_default_folder()
 
 		fnames = get_updated_list()
 		window["-FILE LIST-"].update(fnames)
+
+		if get_settings_file()["auto_load_default"] == True:
+			thread = threading.Thread(target=clock)
+			
+			thread.start()
+			do_run = True
+			window["-AL-"].update(True)
+			window["-DEBUG-"].update("Activated Auto Load.")
+
+	if event == "-REGION-":
+		create_and_change_settings_file(values["-REGION-"], values["-AL-"])
+
+		client = Client(region=values["-REGION-"])
+		client.activate()
 
 	if event == "-FILE LIST-":
 		try:
@@ -190,7 +229,10 @@ while True:
 			pass
 
 	if event == "-LOAD-":
-		load_loadout(values["-FILE LIST-"][0])
+		try:
+			load_loadout(values["-FILE LIST-"][0])
+		except:
+			pass
 
 	if event == "-AL-":
 		thread = threading.Thread(target=clock)
@@ -198,13 +240,12 @@ while True:
 		if values["-AL-"] == True:
 			thread.start()
 			do_run = True
+			create_and_change_settings_file(values["-REGION-"], True)
 			window["-DEBUG-"].update("Activated Auto Load.")
 		else:
 			do_run = False
+			create_and_change_settings_file(values["-REGION-"], False)
 			window["-DEBUG-"].update("Deactivated Auto Load.")
-
-	if event == "Exit" or event == sg.WIN_CLOSED:
-		break
 
 	#Right Click Menu
 	if event == "Delete":
@@ -221,6 +262,9 @@ while True:
 	if event == "Load":
 		if len(values["-FILE LIST-"]) != 0:
 			load_loadout(values["-FILE LIST-"][0])
+
+	if event == "Exit" or event == sg.WIN_CLOSED:
+		break
 
 do_run = False
 window.close()
